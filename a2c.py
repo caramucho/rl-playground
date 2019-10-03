@@ -8,9 +8,9 @@ Original file is located at
 """
 
 # from multiprocessing import SubprocVecEnv
-import math
-import random
-import os
+# import math
+# import random
+# import os
 
 import gym
 import numpy as np
@@ -18,7 +18,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
-import torch.nn.functional as F
+# import torch.nn.functional as F
 from torch.distributions import Categorical
 from multiprocessing_env import SubprocVecEnv
 
@@ -80,20 +80,19 @@ def test_env(vis=False):
     return total_reward
 
 
-"""<h1>A2C: Synchronous Advantage Actor Critic</h1>
-<h3><a href="https://blog.openai.com/baselines-acktr-a2c/#a2canda3c">OpenAI Blog:</a></h3>
-<p>The Asynchronous Advantage Actor Critic method (A3C) has been very influential since the paper was published. The algorithm combines a few key ideas:</p>
+# <h1>A2C: Synchronous Advantage Actor Critic</h1>
+# <h3><a href="https://blog.openai.com/baselines-acktr-a2c/#a2canda3c">OpenAI Blog:</a></h3>
+# <p>The Asynchronous Advantage Actor Critic method (A3C) has been very influential since the paper was published. The algorithm combines a few key ideas:</p>
 
-<ul>
-    <li>An updating scheme that operates on fixed-length segments of experience (say, 20 timesteps) and uses these segments to compute estimators of the returns and advantage function.</li>
-    <li>Architectures that share layers between the policy and value function.</li>
-    <li>Asynchronous updates.</li>
-</ul>
+# <ul>
+#     <li>An updating scheme that operates on fixed-length segments of experience (say, 20 timesteps) and uses these segments to compute estimators of the returns and advantage function.</li>
+#     <li>Architectures that share layers between the policy and value function.</li>
+#     <li>Asynchronous updates.</li>
+# </ul>
 
-<p>After reading the paper, AI researchers wondered whether the asynchrony led to improved performance (e.g. “perhaps the added noise would provide some regularization or exploration?“), or if it was just an implementation detail that allowed for faster training with a CPU-based implementation.</p>
+# <p>After reading the paper, AI researchers wondered whether the asynchrony led to improved performance (e.g. “perhaps the added noise would provide some regularization or exploration?“), or if it was just an implementation detail that allowed for faster training with a CPU-based implementation.</p>
 
-<p>As an alternative to the asynchronous implementation, researchers found you can write a synchronous, deterministic implementation that waits for each actor to finish its segment of experience before performing an update, averaging over all of the actors. One advantage of this method is that it can more effectively use of GPUs, which perform best with large batch sizes. This algorithm is naturally called A2C, short for advantage actor critic. (This term has been used in several papers.)</p>
-"""
+# <p>As an alternative to the asynchronous implementation, researchers found you can write a synchronous, deterministic implementation that waits for each actor to finish its segment of experience before performing an update, averaging over all of the actors. One advantage of this method is that it can more effectively use of GPUs, which perform best with large batch sizes. This algorithm is naturally called A2C, short for advantage actor critic. (This term has been used in several papers.)</p>
 
 
 def compute_returns(next_value, rewards, masks, gamma=0.99):
