@@ -192,6 +192,7 @@ if __name__ == "__main__":
         critic_loss = advantage.pow(2).mean()
 
         loss = actor_loss + 0.5 * critic_loss - 0.001 * entropy
+        print(actor_loss.item(), 0.5*critic_loss.item(), 0.001*entropy.item())
 
         optimizer.zero_grad()
         loss.backward()
