@@ -14,6 +14,7 @@ Original file is located at
 
 import gym
 import numpy as np
+import sys
 
 import torch
 import torch.nn as nn
@@ -180,9 +181,10 @@ if __name__ == "__main__":
         next_state = torch.FloatTensor(next_state).to(device)
         _, next_value = model(next_state)
         returns = compute_returns(next_value, rewards, masks)
-
         log_probs = torch.cat(log_probs)
         returns = torch.cat(returns).detach()
+        print(returns)
+        sys.exit(1)
         values = torch.cat(values)
         # print(log_probs.shape, returns.shape, values.shape)
 
