@@ -1,5 +1,3 @@
-import matplotlib.pyplot as plt
-from IPython.display import clear_output
 from collections import deque
 import math
 import random
@@ -121,18 +119,6 @@ use_cuda = torch.cuda.is_available()
 device = torch.device("cuda" if use_cuda else "cpu")
 
 
-def plot(frame_idx, rewards, losses):
-    clear_output(True)
-    plt.figure(figsize=(20, 5))
-    plt.subplot(131)
-    plt.title('Mean Reward: %s. frame: %s' % (rewards[-1], frame_idx))
-    plt.plot(rewards)
-    plt.subplot(132)
-    plt.title('loss')
-    plt.plot(losses)
-    plt.show()
-
-
 if __name__ == "__main__":
     num_bits = 11
     env = Bit_Flipping(num_bits)
@@ -166,8 +152,9 @@ if __name__ == "__main__":
             frame_idx += 1
 
             if frame_idx % 1000 == 0:
-                plot(frame_idx, [np.mean(all_rewards[i:i+100])
-                                 for i in range(0, len(all_rewards), 100)], losses)
+                # plot(frame_idx, [np.mean(all_rewards[i:i+100])
+                # for i in range(0, len(all_rewards), 100)], losses)
+                print(np.mean(all_rewards[-100:-1]))
 
         loss = compute_td_error(batch_size)
         if loss is not None:
