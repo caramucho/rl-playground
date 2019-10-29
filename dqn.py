@@ -148,10 +148,11 @@ if __name__ == "__main__":
             total_reward += reward
             frame_idx += 1
 
-            if frame_idx % 1000 == 0:
-                # plot(frame_idx, [np.mean(all_rewards[i:i+100])
-                # for i in range(0, len(all_rewards), 100)], losses)
-                print(np.mean(all_rewards[-100:-1]))
+        if frame_idx % 100 == 0:
+            # plot(frame_idx, [np.mean(all_rewards[i:i+100])
+            # for i in range(0, len(all_rewards), 100)], losses)
+            print(np.mean(all_rewards[-100:]))
+            print("loss: ", np.mean(losses))
 
         loss = compute_td_error(batch_size)
         if loss is not None:
