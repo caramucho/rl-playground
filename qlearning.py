@@ -1,6 +1,10 @@
 import numpy as np
 import pandas as pd
 import random
+from collections import defaultdict
+
+
+qtable = defaultdict(lambda: np.zeros(4))
 
 
 class Game:
@@ -47,7 +51,7 @@ def updateq(state, next_state, action, reward):
     discount_factor = 0.9
     qvalues = qtable[next_state]
     best_action_q = max(qvalues)
-    qtable[state] = (1-alpha)*qtable[state] + alpha * \
+    qtable[state][action] = (1-alpha)*qtable[state][action] + alpha * \
         (reward + discount_factor * best_action_q)
 
 
@@ -57,21 +61,42 @@ def epsilon_greedy(state):
     qvalues = qtable[state]
     best_action = np.argmax(qvalues)
     probs[best_action] = 1-epsilon
-    print(probs)
+    np.random.seed()
     return np.random.choice([0, 1, 2, 3], p=probs)
 
 
-if __name__ == "__main__":
-    passqtable = defaultdict(lambda: np.zeros(4))
-    for i in range(1000):
+def test():
     end = False
     env = Game()
     state = (env.positionCol, env.positionRow)
+    total_reward = 0
+    total_step = 0
     while not end:
-        actionid = epsilon_greedy(state)
+        qvalues = qtable[state]
+        best_action = np.argmax(qvalues)
         actionspace = ["Up", "Down", "Left", "Right"]
-        action = actionspace[actionid]
+        action = actionspace[best_action]
         reward, end = env.move(action)
+        total_reward += reward
+        total_step += 1
         next_state = (env.positionCol, env.positionRow)
-        updateq(state, next_state, actionid, reward)
         state = next_state
+    print(total_reward, total_step)
+
+
+if __name__ == "__main__":
+    for i in range(1000):
+        end = False
+        env = Game()
+        state = (env.positionCol, env.positionRow)
+        while not end:
+            actionid = epsilon_greedy(state)
+            actionspace = ["Up", "Down", "Left", "Right"]
+            action = actionspace[actionid]
+            reward, end = env.move(action)
+            next_state = (env.positionCol, env.positionRow)
+            updateq(state, next_state, actionid, reward)
+            state = next_state
+
+    print(qtable)
+    # test()
