@@ -1,15 +1,12 @@
 from collections import deque
-import math
 import random
 
-import gym
 import numpy as np
 
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
-from torch.distributions import Categorical
 
 
 class Bit_Flipping(object):
@@ -25,7 +22,7 @@ class Bit_Flipping(object):
 
     def step(self, action):
         if self.done:
-            raise RESET
+            raise ValueError
 
         self.state[action] = 1 - self.state[action]
 
