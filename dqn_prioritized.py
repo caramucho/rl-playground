@@ -128,3 +128,54 @@ class PrioritizedMemory(object):  # stored as ( s, a, r, s_ ) in SumTree
         ps = np.power(clipped_errors, self.alpha)
         for ti, p in zip(tree_idx, ps):
             self.tree.update(ti, p)
+
+
+if __name__ == "__main__":
+    env = gym.make('MountainCar-v0')
+    n_state = env.observation_space.shape[0]
+    n_actions = env.action_space.n
+    policy_net = DQN(n_state, n_actions, hidden_size=128).to(device)
+    target_net = DQN(n_state, n_actions, hidden_size=128).to(device)
+    update_target(policy_net, target_net)
+    replay_buffer = ReplayBuffer(5000)
+    # optimizer = optim.Adam(policy_net.parameters())
+    optimizer = optim.RMSprop(policy_net.parameters())
+    all_rewards = []
+    losses = []
+    steps_done = 0
+
+    num_episodes = 500
+    for i_episode in range(num_episodes):
+        state = env.reset()
+        state = torch.FloatTensor(state).unsqueeze(0).to(device)
+        total_reward = 0
+        for t in count():
+            # Select and perform an action
+            action = get_action(state)
+            next_state, reward, done, _ = env.step(action.item())
+            if done:
+                next_state = None
+            else:
+                next_state = torch.FloatTensor(
+                    next_state).unsqueeze(0).to(device)
+
+            total_reward += reward
+            reward = torch.tensor([reward], device=device)
+
+            # Store the transition in memory
+            replay_buffer.push(state, action, next_state, reward)
+
+            # Move to the next state
+            state = next_state
+
+            # Perform one step of the optimization (on the target network)
+            optimize_model()
+            if done:
+                # episode_durations.append(t + 1)
+                # plot_durations()
+                all_rewards.append(total_reward)
+                break
+        # Update the target network, copying all weights and biases in DQN
+        if i_episode % TARGET_UPDATE == 0:
+            print(all_rewards[-10:])
+            update_target(policy_net, target_net)
