@@ -1,12 +1,8 @@
 import gym
 import math
 import random
-import numpy as np
-import matplotlib
-import matplotlib.pyplot as plt
 from collections import namedtuple
 from itertools import count
-from PIL import Image
 from collections import deque
 
 import torch
@@ -54,7 +50,7 @@ def update_target(current_model, target_model):
 
 
 use_cuda = torch.cuda.is_available()
-device = torch.device("cuda" if use_cuda else "cpu")
+device = torch.device("cuda:1" if use_cuda else "cpu")
 
 BATCH_SIZE = 64
 GAMMA = 0.999
@@ -131,8 +127,8 @@ if __name__ == "__main__":
     env = gym.make('CartPole-v0')
     n_state = env.observation_space.shape[0]
     n_actions = env.action_space.n
-    policy_net = DQN(n_state, n_actions, hidden_size=128).to(device)
-    target_net = DQN(n_state, n_actions, hidden_size=128).to(device)
+    policy_net = DQN(n_state, n_actions, hidden_size=64).to(device)
+    target_net = DQN(n_state, n_actions, hidden_size=64).to(device)
     update_target(policy_net, target_net)
     replay_buffer = ReplayBuffer(5000)
     # optimizer = optim.Adam(policy_net.parameters())
@@ -141,7 +137,7 @@ if __name__ == "__main__":
     losses = []
     steps_done = 0
 
-    num_episodes = 500
+    num_episodes = 900
     for i_episode in range(num_episodes):
         state = env.reset()
         state = torch.FloatTensor(state).unsqueeze(0).to(device)
