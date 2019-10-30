@@ -1,3 +1,5 @@
+import math
+from itertools import count
 import gym
 import random
 from collections import deque
@@ -11,6 +13,19 @@ import torch.nn.functional as F
 
 Transition = namedtuple('Transition',
                         ('state', 'action', 'next_state', 'reward'))
+
+
+class DQN(nn.Module):
+    def __init__(self, num_inputs, num_outputs, hidden_size=256):
+        super(DQN, self).__init__()
+
+        self.linear1 = nn.Linear(num_inputs,  hidden_size)
+        self.linear2 = nn.Linear(hidden_size, num_outputs)
+
+    def forward(self, state):
+        x = F.relu(self.linear1(state))
+        x = self.linear2(x)
+        return x
 
 
 class SumTree(object):
@@ -29,8 +44,10 @@ class SumTree(object):
         self.data = np.zeros(capacity, dtype=object)  # for all transitions
         # [--------------data frame-------------]
         #             size: capacity
+        self.counter = 0
 
     def add(self, p, data):
+        self.counter += 1
         tree_idx = self.data_pointer + self.capacity - 1
         self.data[self.data_pointer] = data  # update data_frame
         self.update(tree_idx, p)  # update tree_frame
@@ -80,8 +97,11 @@ class SumTree(object):
     def total_p(self):
         return self.tree[0]  # the root
 
+    def __len__(self):
+        return self.counter if self.counter < self.capacity else self.capacity
 
-class PrioritizedMemory(object):  # stored as ( s, a, r, s_ ) in SumTree
+
+class PERMemory(object):  # stored as ( s, a, r, s_ ) in SumTree
     """
     This Memory class is modified based on the original code from:
     https://github.com/jaara/AI-blog/blob/master/Seaquest-DDQN-PER.py
@@ -95,7 +115,7 @@ class PrioritizedMemory(object):  # stored as ( s, a, r, s_ ) in SumTree
     def __init__(self, capacity):
         self.tree = SumTree(capacity)
 
-    def store(self, *args):
+    def push(self, *args):
         transition = Transition(*args)
         max_p = np.max(self.tree.tree[-self.tree.capacity:])
         if max_p == 0:
@@ -103,8 +123,9 @@ class PrioritizedMemory(object):  # stored as ( s, a, r, s_ ) in SumTree
         self.tree.add(max_p, transition)   # set the max p for new p
 
     def sample(self, n):
-        b_idx, b_memory, ISWeights = np.empty((n,), dtype=np.int32), np.empty(
-            (n, self.tree.data[0].size)), np.empty((n, 1))
+        b_idx = np.empty((n,), dtype=np.int32)
+        ISWeights = np.empty((n, 1))
+        b_memory = []
         pri_seg = self.tree.total_p / n       # priority segment
         self.beta = np.min(
             [1., self.beta + self.beta_increment_per_sampling])  # max = 1
@@ -118,8 +139,8 @@ class PrioritizedMemory(object):  # stored as ( s, a, r, s_ ) in SumTree
             idx, p, data = self.tree.get_leaf(v)
             prob = p / self.tree.total_p
             ISWeights[i, 0] = np.power(prob/min_prob, -self.beta)
-            b_idx[i], b_memory[i, :] = idx, data
-        b_memory = Transition(*zip(*b_memory))
+            b_idx[i] = idx
+            b_memory.append(data)
         return b_idx, b_memory, ISWeights
 
     def batch_update(self, tree_idx, abs_errors):
@@ -129,6 +150,88 @@ class PrioritizedMemory(object):  # stored as ( s, a, r, s_ ) in SumTree
         for ti, p in zip(tree_idx, ps):
             self.tree.update(ti, p)
 
+    def __len__(self):
+        return len(self.tree)
+
+
+def update_target(current_model, target_model):
+    target_model.load_state_dict(current_model.state_dict())
+
+
+def get_action(state):
+    global steps_done
+    sample = random.random()
+    eps_threshold = EPS_END + (EPS_START - EPS_END) * \
+        math.exp(-1. * steps_done / EPS_DECAY)
+    steps_done += 1
+    if sample > eps_threshold:
+        with torch.no_grad():
+            # t.max(1) will return largest column value of each row.
+            # second column on max result is index of where max element was
+            # found, so we pick action with the larger expected reward.
+            return policy_net(state).max(1)[1].view(1, 1)
+    else:
+        return torch.tensor([[random.randrange(n_actions)]], device=device, dtype=torch.long)
+
+
+def optimize_model(batch_size):
+    if len(replay_buffer) < batch_size:
+        return
+    b_idx, transitions, ISWeights = replay_buffer.sample(batch_size)
+    # Transpose the batch (see https://stackoverflow.com/a/19343/3343043 for
+    # detailed explanation). This converts batch-array of Transitions
+    # to Transition of batch-arrays.
+    batch = Transition(*zip(*transitions))
+
+    # Compute a mask of non-final states and concatenate the batch elements
+    # (a final state would've been the one after which simulation ended)
+    non_final_mask = torch.tensor(tuple(map(lambda s: s is not None,
+                                            batch.next_state)), device=device, dtype=torch.uint8)
+    non_final_next_states = torch.cat([s for s in batch.next_state
+                                       if s is not None])
+    state_batch = torch.cat(batch.state)
+    action_batch = torch.cat(batch.action)
+    reward_batch = torch.cat(batch.reward)
+
+    # Compute Q(s_t, a) - the model computes Q(s_t), then we select the
+    # columns of actions taken. These are the actions which would've been taken
+    # for each batch state according to policy_net
+    state_action_values = policy_net(state_batch).gather(1, action_batch)
+
+    # Compute V(s_{t+1}) for all next states.
+    # Expected values of actions for non_final_next_states are computed based
+    # on the "older" target_net; selecting their best reward with max(1)[0].
+    # This is merged based on the mask, such that we'll have either the expected
+    # state value or 0 in case the state was final.
+    next_state_values = torch.zeros(batch_size, device=device)
+    next_state_values[non_final_mask] = target_net(
+        non_final_next_states).max(1)[0].detach()
+    # Compute the expected Q values
+    expected_state_action_values = (next_state_values * GAMMA) + reward_batch
+
+    abs_errors = torch.abs(state_action_values -
+                           expected_state_action_values.unsqueeze(1)).sum(0)
+    # Compute Huber loss
+    loss = F.smooth_l1_loss(state_action_values,
+                            expected_state_action_values.unsqueeze(1))
+
+    # Optimize the model
+    optimizer.zero_grad()
+    loss.backward()
+    for param in policy_net.parameters():
+        param.grad.data.clamp_(-1, 1)
+    optimizer.step()
+
+
+use_cuda = torch.cuda.is_available()
+device = torch.device("cuda:1" if use_cuda else "cpu")
+
+batch_size = 64
+GAMMA = 0.999
+EPS_START = 0.9
+EPS_END = 0.05
+EPS_DECAY = 200
+TARGET_UPDATE = 10
 
 if __name__ == "__main__":
     env = gym.make('MountainCar-v0')
@@ -137,7 +240,7 @@ if __name__ == "__main__":
     policy_net = DQN(n_state, n_actions, hidden_size=128).to(device)
     target_net = DQN(n_state, n_actions, hidden_size=128).to(device)
     update_target(policy_net, target_net)
-    replay_buffer = ReplayBuffer(5000)
+    replay_buffer = PrioritizedMemory(5000)
     # optimizer = optim.Adam(policy_net.parameters())
     optimizer = optim.RMSprop(policy_net.parameters())
     all_rewards = []
@@ -169,7 +272,7 @@ if __name__ == "__main__":
             state = next_state
 
             # Perform one step of the optimization (on the target network)
-            optimize_model()
+            optimize_model(64)
             if done:
                 # episode_durations.append(t + 1)
                 # plot_durations()
