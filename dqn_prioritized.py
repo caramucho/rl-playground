@@ -95,7 +95,7 @@ class PrioritizedMemory(object):  # stored as ( s, a, r, s_ ) in SumTree
     def __init__(self, capacity):
         self.tree = SumTree(capacity)
 
-    def store(self, args):
+    def store(self, *args):
         transition = Transition(*args)
         max_p = np.max(self.tree.tree[-self.tree.capacity:])
         if max_p == 0:
@@ -119,6 +119,7 @@ class PrioritizedMemory(object):  # stored as ( s, a, r, s_ ) in SumTree
             prob = p / self.tree.total_p
             ISWeights[i, 0] = np.power(prob/min_prob, -self.beta)
             b_idx[i], b_memory[i, :] = idx, data
+        b_memory = Transition(*zip(*b_memory))
         return b_idx, b_memory, ISWeights
 
     def batch_update(self, tree_idx, abs_errors):
