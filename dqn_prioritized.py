@@ -106,7 +106,7 @@ class PERMemory(object):  # stored as ( s, a, r, s_ ) in SumTree
     This Memory class is modified based on the original code from:
     https://github.com/jaara/AI-blog/blob/master/Seaquest-DDQN-PER.py
     """
-    epsilon = 0.01  # small amount to avoid zero priority
+    xi = 0.01  # small amount to avoid zero priority
     alpha = 0.6  # [0~1] convert the importance of TD error to priority
     beta = 0.4  # importance-sampling, from initial value increasing to 1
     beta_increment_per_sampling = 0.001
@@ -123,28 +123,32 @@ class PERMemory(object):  # stored as ( s, a, r, s_ ) in SumTree
         self.tree.add(max_p, transition)   # set the max p for new p
 
     def sample(self, n):
-        b_idx = np.empty((n,), dtype=np.int32)
-        ISWeights = np.empty((n, 1))
+        b_idx = []
+        ISWeights = []
         b_memory = []
         pri_seg = self.tree.total_p / n       # priority segment
-        self.beta = np.min(
-            [1., self.beta + self.beta_increment_per_sampling])  # max = 1
 
         # for later calculate ISweight
-        min_prob = np.min(
-            self.tree.tree[-self.tree.capacity:]) / self.tree.total_p
+        # min_prob = np.min(
+        #     self.tree.tree[-self.tree.capacity:]) / self.tree.total_p
+        buffer_size = len(self.tree)
         for i in range(n):
             a, b = pri_seg * i, pri_seg * (i + 1)
             v = np.random.uniform(a, b)
             idx, p, data = self.tree.get_leaf(v)
             prob = p / self.tree.total_p
-            ISWeights[i, 0] = np.power(prob/min_prob, -self.beta)
-            b_idx[i] = idx
+            ISWeights.append(np.power(prob * buffer_size, -self.beta))
+            b_idx.append(idx)
             b_memory.append(data)
+        # normalize important sampling weights
+        ISWeights /= max(ISWeights)
+        # update beta1
+        self.beta = np.min(
+            [1., self.beta + self.beta_increment_per_sampling])  # max = 1
         return b_idx, b_memory, ISWeights
 
     def batch_update(self, tree_idx, abs_errors):
-        abs_errors += self.epsilon  # convert to abs and avoid 0
+        abs_errors += self.xi  # convert to abs and avoid 0
         clipped_errors = np.minimum(abs_errors, self.abs_err_upper)
         ps = np.power(clipped_errors, self.alpha)
         for ti, p in zip(tree_idx, ps):
@@ -159,6 +163,9 @@ def update_target(current_model, target_model):
 
 
 def get_action(state):
+    EPS_START = 0.9
+    EPS_END = 0.2
+    EPS_DECAY = 20000
     global steps_done
     sample = random.random()
     eps_threshold = EPS_END + (EPS_START - EPS_END) * \
@@ -175,6 +182,7 @@ def get_action(state):
 
 
 def optimize_model(batch_size):
+
     if len(replay_buffer) < batch_size:
         return
     b_idx, transitions, ISWeights = replay_buffer.sample(batch_size)
@@ -209,8 +217,11 @@ def optimize_model(batch_size):
     # Compute the expected Q values
     expected_state_action_values = (next_state_values * GAMMA) + reward_batch
 
+    # Update the transition priority
     abs_errors = torch.abs(state_action_values -
-                           expected_state_action_values.unsqueeze(1)).sum(0)
+                           expected_state_action_values.unsqueeze(1)).cpu().detach().numpy()
+    replay_buffer.batch_update(b_idx, abs_errors)
+
     # Compute Huber loss
     loss = F.smooth_l1_loss(state_action_values,
                             expected_state_action_values.unsqueeze(1))
@@ -228,9 +239,6 @@ device = torch.device("cuda:1" if use_cuda else "cpu")
 
 batch_size = 64
 GAMMA = 0.999
-EPS_START = 0.9
-EPS_END = 0.05
-EPS_DECAY = 200
 TARGET_UPDATE = 10
 
 if __name__ == "__main__":
@@ -240,7 +248,7 @@ if __name__ == "__main__":
     policy_net = DQN(n_state, n_actions, hidden_size=128).to(device)
     target_net = DQN(n_state, n_actions, hidden_size=128).to(device)
     update_target(policy_net, target_net)
-    replay_buffer = PrioritizedMemory(5000)
+    replay_buffer = PERMemory(5000)
     # optimizer = optim.Adam(policy_net.parameters())
     optimizer = optim.RMSprop(policy_net.parameters())
     all_rewards = []
