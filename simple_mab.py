@@ -5,15 +5,16 @@ import numpy as np
 
 
 def epsilon_greedy(action_space):
-    EPS_START = 0.99
-    EPS_END = 0.01
+    global steps
+    EPS_START = 0.9
+    EPS_END = 0.1
     EPS_DECAY = 100
     # global steps_done
     epsilon = EPS_END + (EPS_START - EPS_END) * \
         math.exp(-1. * steps / EPS_DECAY)
     # steps_done += 1
     # global steps
-    # steps += 1
+    steps += 1
     probs = np.zeros(action_space) + epsilon/(action_space - 1)
     best_action = np.argmax(qtable)
     probs[best_action] = 1-epsilon
@@ -33,13 +34,12 @@ if __name__ == "__main__":
     # n_state = env.observation_space.shape
     n_actions = env.action_space.n
     all_rewards = []
+    steps = 0
     qtable = np.zeros(n_actions)
-    for i_episode in range(20):
+    for i_episode in range(10):
         # state = env.reset()
         total_reward = 0
-        for i in range(20):
-            global steps
-            steps = i
+        for i in range(30):
             # sampling the "action" array which in this case only contains 10 "options" because there is 10 bandits
             # action = get_action(state)
             # action = env.action_space.sample()
