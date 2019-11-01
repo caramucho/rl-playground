@@ -9,12 +9,6 @@ def ucb(action_space):
     if steps < action_space:
         return steps
     ucb = [v + np.sqrt(2*np.log(steps) / count) for (v, count) in avg]
-    # for (v, count) in avg:
-    #     if count == 0:
-    #         d = 1
-    #     else:
-    #         d = np.sqrt(2*np.log(steps) / count)
-    #     ucb.append(v+d)
     best_action = np.argmax(ucb)
     return best_action
 
@@ -35,7 +29,7 @@ if __name__ == "__main__":
     all_rewards = []
     steps = 0
     avg = np.zeros((n_actions, 2))
-    for i_episode in range(200):
+    for i_episode in range(20):
         # state = env.reset()
         total_reward = 0
         for i in range(200):
