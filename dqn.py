@@ -101,7 +101,7 @@ def compute_td_error(batch_size):
     return loss
 
 
-def get_action(model, state, goal, epsilon=0.1):
+def get_action(model, state, goal, epsilon=0.3):
     if random.random() < epsilon:
         return random.randrange(env.num_bits)
 
@@ -124,11 +124,11 @@ if __name__ == "__main__":
     target_model = Model(2 * num_bits, num_bits).to(device)
     update_target(model, target_model)
 
-    replay_buffer = ReplayBuffer(50000)
+    replay_buffer = ReplayBuffer(5000)
     # hyperparams:
     batch_size = 5
     new_goals = 5
-    max_frames = 200000
+    max_frames = 20000
 
     optimizer = optim.Adam(model.parameters())
     frame_idx = 0
@@ -148,13 +148,13 @@ if __name__ == "__main__":
             total_reward += reward
             frame_idx += 1
 
-        if frame_idx % 100 == 0:
-            # plot(frame_idx, [np.mean(all_rewards[i:i+100])
-            # for i in range(0, len(all_rewards), 100)], losses)
-            print(np.mean(all_rewards[-100:]))
-            print("loss: ", np.mean(losses))
-
         loss = compute_td_error(batch_size)
         if loss is not None:
             losses.append(loss.item())
         all_rewards.append(total_reward)
+
+        if frame_idx % 10 == 0:
+            # plot(frame_idx, [np.mean(all_rewards[i:i+100])
+            # for i in range(0, len(all_rewards), 100)], losses)
+            print(np.mean(all_rewards[-10:]))
+            update_target(model, target_model)
