@@ -92,10 +92,14 @@ def compute_td_error(batch_size):
 
     expected_q_value = reward + 0.99 * next_q_value * mask
 
-    loss = (q_value - expected_q_value.detach()).pow(2).mean()
+    # loss = (q_value - expected_q_value.detach()).pow(2).mean()
+    loss = F.smooth_l1_loss(q_value,
+                            expected_q_value.detach())
 
     optimizer.zero_grad()
     loss.backward()
+    for param in model.parameters():
+        param.grad.data.clamp_(-1, 1)
     optimizer.step()
 
     return loss
@@ -128,7 +132,7 @@ if __name__ == "__main__":
     # hyperparams:
     batch_size = 5
     new_goals = 5
-    max_frames = 20000
+    max_frames = 200000
 
     optimizer = optim.Adam(model.parameters())
     frame_idx = 0
@@ -156,5 +160,5 @@ if __name__ == "__main__":
         if frame_idx % 10 == 0:
             # plot(frame_idx, [np.mean(all_rewards[i:i+100])
             # for i in range(0, len(all_rewards), 100)], losses)
-            print(np.mean(all_rewards[-10:]))
+            print(all_rewards[-10:])
             update_target(model, target_model)
