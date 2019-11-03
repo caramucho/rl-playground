@@ -14,10 +14,10 @@ plt.plot(x_train, y_train)
 class regression(nn.Module):
     def __init__(self):
         super(regression, self).__init__()
-        self.my_d = nn.Parameter(torch.randn(1))
-        self.my_c = nn.Parameter(torch.randn(1))
-        self.my_b = nn.Parameter(torch.randn(1))
-        self.my_a = nn.Parameter(torch.randn(1))
+        self.my_para = nn.Parameter(torch.randn(7))
+        # self.my_c = nn.Parameter(torch.randn(1))
+        # self.my_b = nn.Parameter(torch.randn(1))
+        # self.my_a = nn.Parameter(torch.randn(1))
         # self.my_c = nn.Parameter(torch.Tensor([10]))
         # self.my_b = nn.Parameter(torch.Tensor([-8]))
         # self.my_a = nn.Parameter(torch.Tensor([1]))
@@ -25,7 +25,8 @@ class regression(nn.Module):
         # self.not_param = Variable(torch.randn(1), requires_grad=True)
 
     def forward(self, x):
-        return +self.my_d*x*x*x + self.my_a * x * x + self.my_b * x + self.my_c
+        res = [self.my_para[i] * x**i for i in range(7)]
+        return torch.sum(res)
 
 
 learning_rate = 1
