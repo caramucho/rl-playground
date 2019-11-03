@@ -176,15 +176,13 @@ if __name__ == "__main__":
             if frame_idx % 1000 == 0:
                 test_rewards.append(np.mean([test_env() for _ in range(10)]))
                 # plot(frame_idx, test_rewards)
-                # print(test_rewards)
+                print(test_rewards[-100:])
 
         next_state = torch.FloatTensor(next_state).to(device)
         _, next_value = model(next_state)
         returns = compute_returns(next_value, rewards, masks)
         log_probs = torch.cat(log_probs)
         returns = torch.cat(returns).detach()
-        print(returns)
-        sys.exit(1)
         values = torch.cat(values)
         # print(log_probs.shape, returns.shape, values.shape)
 
@@ -194,7 +192,7 @@ if __name__ == "__main__":
         critic_loss = advantage.pow(2).mean()
 
         loss = actor_loss + 0.5 * critic_loss - 0.001 * entropy
-        print(actor_loss.item(), 0.5*critic_loss.item(), 0.001*entropy.item())
+        # print(actor_loss.item(), 0.5*critic_loss.item(), 0.001*entropy.item())
 
         optimizer.zero_grad()
         loss.backward()
