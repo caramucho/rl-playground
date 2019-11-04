@@ -168,6 +168,7 @@ def ddpg_update(batch_size,
     value_loss.backward()
     value_optimizer.step()
 
+    # soft target net replacement
     for target_param, param in zip(target_value_net.parameters(), value_net.parameters()):
         target_param.data.copy_(
             target_param.data * (1.0 - soft_tau) + param.data * soft_tau
