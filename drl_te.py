@@ -47,18 +47,18 @@ class ActorCritic(nn.Module):
 
 
 def test_env(vis=False):
-    state = env.reset()
+    state = envs.reset()
     if vis:
-        env.render()
+        envs.render()
     done = False
     total_reward = 0
     while not done:
         state = torch.FloatTensor(state).unsqueeze(0).to(device)
         dist, _ = model(state)
-        next_state, reward, done, _ = env.step(dist.sample().cpu().numpy()[0])
+        next_state, reward, done, _ = envs.step(dist.sample().cpu().numpy()[0])
         state = next_state
         if vis:
-            env.render()
+            envs.render()
         total_reward += reward
     return total_reward
 
@@ -101,7 +101,8 @@ def drl_update(batch_size):
     # Compute Q(s_t, a) - the model computes Q(s_t), then we select the
     # columns of actions taken. These are the actions which would've been taken
     # for each batch state according to policy_net
-    dists, state_action_values = model(state_batch).gather(1, action_batch)
+    dists, state_action_values = model(state_batch)
+    # state_action_values = state_action_values_all.gather(1, action_batch)
 
     # Compute V(s_{t+1}) for all next states.
     # Expected values of actions for non_final_next_states are computed based
@@ -109,8 +110,9 @@ def drl_update(batch_size):
     # This is merged based on the mask, such that we'll have either the expected
     # state value or 0 in case the state was final.
     next_state_values = torch.zeros(batch_size, device=device)
-    next_dists, next_state_values[non_final_mask] = target_model(
-        non_final_next_states).max(1)[0].detach()
+    next_dists, next_state_values_all = target_model(
+        non_final_next_states)
+    next_state_values[non_final_mask] = next_state_values_all.squeeze()
     # Compute the expected Q values
     expected_state_action_values = (next_state_values * GAMMA) + reward_batch
 
@@ -119,29 +121,32 @@ def drl_update(batch_size):
                            expected_state_action_values.unsqueeze(1)).cpu().detach().numpy()
     replay_buffer.batch_update(b_idx, abs_errors)
 
-    log_prob = dist.log_prob(action)
-    entropy += dist.entropy().mean()
+    log_probs = dists.log_prob(action_batch)
+    # entropy += dists.entropy().mean()
 
-    log_probs.append(log_prob)
-    values.append(value)
-    rewards.append(torch.FloatTensor(reward).unsqueeze(1).to(device))
-    masks.append(torch.FloatTensor(1 - done).unsqueeze(1).to(device))
+    # log_probs.append(log_prob)
+    # values.append(value)
+    # rewards.append(torch.FloatTensor(reward).unsqueeze(1).to(device))
+    # masks.append(torch.FloatTensor(1 - done).unsqueeze(1).to(device))
 
-    next_state = torch.FloatTensor(next_state).to(device)
-    _, next_value = model(next_state)
-    returns = compute_returns(next_value, rewards, masks)
-    log_probs = torch.cat(log_probs)
-    returns = torch.cat(returns).detach()
-    values = torch.cat(values)
+    # next_state = torch.FloatTensor(next_state).to(device)
+    # _, next_value = model(next_state)
+    # returns = compute_returns(next_value, rewards, masks)
+    # log_probs = torch.cat(log_probs)
+    # returns = torch.cat(returns).detach()
+    # values = torch.cat(values)
     # print(log_probs.shape, returns.shape, values.shape)
 
-    advantage = returns - values
+    # advantage = returns - values
+    advantage = state_action_values
 
     actor_loss = -(log_probs * advantage.detach()).mean()
-    critic_loss = advantage.pow(2).mean()
+    # critic_loss = advantage.pow(2).mean()
+    critic_loss = F.smooth_l1_loss(state_action_values,
+                                   expected_state_action_values.unsqueeze(1))
 
-    loss = actor_loss + 0.5 * critic_loss - 0.001 * entropy
-    # print(actor_loss.item(), 0.5*critic_loss.item(), 0.001*entropy.item())
+    loss = actor_loss + 0.5 * critic_loss  # - 0.001 * entropy
+    # print(actor_loss.item(), 0.5*critic_loss.item())
 
     optimizer.zero_grad()
     loss.backward()
@@ -219,8 +224,8 @@ if __name__ == "__main__":
     """<h2>Create Environments</h2>"""
 
     num_envs = 16
-    # env_name = "CartPole-v0"
-    env_name = "MountainCar-v0"
+    env_name = "CartPole-v0"
+    # env_name = "MountainCar-v0"
 
     # envs = [make_env() for i in range(num_envs)]
     # envs = SubprocVecEnv(envs)
@@ -234,7 +239,7 @@ if __name__ == "__main__":
     # Hyper params:
     hidden_size = 256
     lr = 3e-4
-    num_steps = 10
+    num_steps = 200
 
     model = ActorCritic(num_inputs, num_outputs, hidden_size).to(device)
     target_model = ActorCritic(num_inputs, num_outputs, hidden_size).to(device)
@@ -245,19 +250,13 @@ if __name__ == "__main__":
     # create PER buffer
     replay_buffer = PERMemory(5000)
 
-    max_frames = 20000
-    frame_idx = 0
+    max_episode = 2000
+    episode = 0
     test_rewards = []
 
-    state = envs.reset()
-    state = torch.FloatTensor(state).unsqueeze(0).to(device)
-
-    while frame_idx < max_frames:
-        log_probs = []
-        values = []
-        rewards = []
-        masks = []
-        entropy = 0
+    while episode < max_episode:
+        state = envs.reset()
+        state = torch.FloatTensor(state).unsqueeze(0).to(device)
 
         for _ in range(num_steps):
             # state = torch.FloatTensor(state).to(device)
@@ -265,6 +264,7 @@ if __name__ == "__main__":
 
             action = dist.sample()
             next_state, reward, done, _ = envs.step(action.cpu().numpy()[0])
+            reward = torch.tensor([reward], device=device)
             if done:
                 next_state = None
             else:
@@ -273,13 +273,15 @@ if __name__ == "__main__":
 
             # Store the transition in memory
             replay_buffer.push(state, action, next_state, reward)
-
             state = next_state
-            frame_idx += 1
+            drl_update(64)
 
-            drl_update(3)
+            if done:
+                break
 
-            if frame_idx % 1000 == 0:
-                test_rewards.append(np.mean([test_env() for _ in range(10)]))
-                # plot(frame_idx, test_rewards)
-                print(test_rewards[-100:])
+        update_target(model, target_model)
+        episode += 1
+        if episode % 10 == 0:
+            test_rewards.append(np.mean([test_env() for _ in range(10)]))
+            # plot(frame_idx, test_rewards)
+            print(test_rewards[-10:])
