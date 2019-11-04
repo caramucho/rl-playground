@@ -122,7 +122,8 @@ if __name__ == "__main__":
     """<h2>Create Environments</h2>"""
 
     num_envs = 16
-    env_name = "CartPole-v0"
+    # env_name = "CartPole-v0"
+    env_name = "MountainCar-v0"
 
     envs = [make_env() for i in range(num_envs)]
     envs = SubprocVecEnv(envs)
@@ -135,7 +136,7 @@ if __name__ == "__main__":
     # Hyper params:
     hidden_size = 256
     lr = 3e-4
-    num_steps = 5
+    num_steps = 100
 
     model = ActorCritic(num_inputs, num_outputs, hidden_size).to(device)
     optimizer = optim.Adam(model.parameters())
